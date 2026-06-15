@@ -37,8 +37,22 @@
           }
         }
       }
-      .onChange(of: textSelectionModel?.selectedRange, initial: true, updateSelectionRects)
-      .onChange(of: layout, initial: true, updateSelectionRects)
+      // A single handler keyed on both inputs. Registering one `onChange` per input
+      // meant both could fire on the same frame (both use `initial: true`), each
+      // writing `selectionRects` — which SwiftUI flags as "onChange(of: Layout)
+      // action tried to update multiple times per frame".
+      .onChange(
+        of: SelectionInput(selectedRange: textSelectionModel?.selectedRange, layout: layout),
+        initial: true,
+        updateSelectionRects
+      )
+    }
+
+    /// The inputs `updateSelectionRects` reads, combined so a change to either drives
+    /// a single state update per frame.
+    private struct SelectionInput: Equatable {
+      let selectedRange: TextRange?
+      let layout: Text.Layout
     }
 
     private func updateSelectionRects() {
