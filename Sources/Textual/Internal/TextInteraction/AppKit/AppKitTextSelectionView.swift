@@ -11,7 +11,6 @@
 
   struct AppKitTextSelectionView: View {
     @Environment(TextSelectionModel.self) private var textSelectionModel: TextSelectionModel?
-    @State private var selectionRects: [TextSelectionRect] = []
 
     private let layout: Text.Layout
     private let origin: CGPoint
@@ -22,7 +21,8 @@
     }
 
     var body: some View {
-      Group {
+      let selectionRects = self.selectionRects
+      return Group {
         if selectionRects.isEmpty {
           Color.clear
         } else {
@@ -37,32 +37,22 @@
           }
         }
       }
-      // A single handler keyed on both inputs. Registering one `onChange` per input
-      // meant both could fire on the same frame (both use `initial: true`), each
-      // writing `selectionRects` — which SwiftUI flags as "onChange(of: Layout)
-      // action tried to update multiple times per frame".
-      .onChange(
-        of: SelectionInput(selectedRange: textSelectionModel?.selectedRange, layout: layout),
-        initial: true,
-        updateSelectionRects
-      )
     }
 
-    /// The inputs `updateSelectionRects` reads, combined so a change to either drives
-    /// a single state update per frame.
-    private struct SelectionInput: Equatable {
-      let selectedRange: TextRange?
-      let layout: Text.Layout
-    }
-
-    private func updateSelectionRects() {
-      if let textSelectionModel,
-        let selectedRange = textSelectionModel.selectedRange
-      {
-        selectionRects = textSelectionModel.selectionRects(for: selectedRange, layout: layout)
-      } else {
-        selectionRects = []
+    /// Selection rectangles for the current range within this layout.
+    ///
+    /// Derived in `body` rather than stored in `@State` and seeded from an
+    /// `onChange(initial: true)`: that initial action wrote state during the first
+    /// view update, which SwiftUI flags ("Modifying state during view update", and
+    /// previously "tried to update multiple times per frame" when both the
+    /// `selectedRange` and `layout` handlers fired on the same frame). As an
+    /// `@Observable`-tracked computation it still recomputes whenever the selected
+    /// range or `layout` changes, with no state mutation.
+    private var selectionRects: [TextSelectionRect] {
+      guard let textSelectionModel, let selectedRange = textSelectionModel.selectedRange else {
+        return []
       }
+      return textSelectionModel.selectionRects(for: selectedRange, layout: layout)
     }
   }
 #endif
